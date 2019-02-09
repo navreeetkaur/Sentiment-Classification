@@ -1,5 +1,5 @@
 .DS_Store
 **/__pycache__/
-A1_data/dev.json
-A1_data/train.json
+data/
 *.ipynb
+*.ipynb_checkpoints/
