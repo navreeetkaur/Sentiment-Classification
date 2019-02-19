@@ -1,7 +1,13 @@
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.stop_words import ENGLISH_STOP_WORDS
-from nltk.stem import PorterStemmer
+from nltk.stem import PorterStemmer, WordNetLemmatizer
 import re
+import nltk
+from time import time
+from utils import penn_to_wn
+from utils import *
+from nltk.corpus import sentiwordnet as swn
+from nltk.corpus import wordnet as wn
 
 """
 Expanding contraction - with minor changes, [SOURCE]: https://www.kaggle.com/saxinou/nlp-01-preprocessing-data
@@ -57,13 +63,13 @@ FOOD_WORDS = ['food','burger', 'pizza', 'sandwish', 'meat', 'coffee','sushi', 't
              'japanese', 'oyster', 'nacho', 'tofu', 'cheese', 'banana', 'apple', 'strawberry', 'mango', 'orange', 
               'honey', 'shake', 'meatball', 'olive',  ]
 
-POS_WORDS = ['cool', 'amaze', 'impress', 'rude', 'comfort', 'happy', 'great', 'good', 'excellent', 'beautiful',
-           'best', 'awesome', 'cheap', 'recommend', 'suggest', 'fast', 'incredible', 'glad', 'yummi', 'tender', 
+POS_WORDS = ['cool', 'amaze', 'impress', 'comfort', 'happy', 'great', 'good', 'excellent', 'beautiful', 'like', 'nice', 'well'
+           'best', 'awesome', 'cheap', 'recommend', 'suggest', 'fast', 'incredible', 'glad', 'yummi', 'yummy', 'tender', 
             'flavour','smile', 'polite', 'homemade', 'fabulous', 'refresh', 'best', 'heart', 'refreshing', 'great', ]
 
-NEG_WORDS = ['hair', 'terrible', 'eww', 'yuck', 'worst', 'ok', 'okay', 'expensive', 'horrible', 'slow', 'lack',
+NEG_WORDS = ['hair', 'terrible', 'eww', 'yuck', 'rude', 'worst', 'ok', 'okay', 'expensive', 'horrible', 'slow', 'lack',
             'average', 'unfortunate', 'smell', 'sad', 'bland', 'dirty', 'avoid', 'mess', 'weird', 'mediocre', 'annoy',
-            'bad', 'digusting', 'bad', 'boring', 'dull', 'bore',]
+            'bad', 'digusting', 'bad', 'boring', 'dull', 'bore', 'pissed']
 
 CUSTOM_STOP = ['time', 'place', 'order', 'service', 'come', 'day', 'minute', 'hour', 'restraunt', 'food'
                             'came', 'went', 'people', 'know', 'menu', 'year', 'review', 'check', 'meal', 'boyfriend',
@@ -73,7 +79,7 @@ CUSTOM_STOP = ['time', 'place', 'order', 'service', 'come', 'day', 'minute', 'ho
                             'night']
 
 
-to_remove = ['too', 'just', 'ok']
+to_remove = ['too', 'just', 'ok', 'well'] + POS_WORDS + NEG_WORDS
 
 stoplist = stopwords.words('english')+ list(ENGLISH_STOP_WORDS) + FOOD_WORDS + list(NEGATION) + list(INTENSITY) + CUSTOM_STOP
 
@@ -86,71 +92,191 @@ for word in to_remove:
 STOPWORDS = set(stoplist)
 
 stemmer = PorterStemmer()
-# sentiment lexicons
-opinionfinder = 'data/subjectivity_clues_hltemnlp05/subjclueslen1-HLTEMNLP05.txt'
+lemmatizer = WordNetLemmatizer()
 # opinion lexicons: taken from https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html#lexicon
-opinion_lexicon_pos = 'data/opinion-lexicon-English/positive-words.txt'
-opinion_lexicon_neg = 'data/opinion-lexicon-English/negative-words.txt'
-# general inquirer
-general_inquirer = 'data/general-inquirer/inquirerbasicttabsclean.txt'
+opinion_lexicon_pos = 'opinion-lexicon-English/positive-words.txt'
+opinion_lexicon_neg = 'opinion-lexicon-English/negative-words.txt'
 
-#- - - - - - - - - - Opinion Lexicons Bing Liu - - - - - - - - - - 
-negs=[]
-pos=[]
-with open(opinion_lexicon_neg, 'rb') as f_neg: 
-    neg_lines = f_neg.readlines()
-    for i, line in enumerate(neg_lines):
-        try:
-            line = line.decode("utf-8").strip()
-            if line and line[0]!=';':
-                word = stemmer.stem(line)
-                word = re.sub('[-]','_', word)
-                if word not in negs:
-                    negs.append(word)
-        except UnicodeDecodeError:
+def get_pos_and_neg_list():
+    #- - - - - - - - - - Opinion Lexicons Bing Liu - - - - - - - - - - 
+    print("Reading Opinion Lexicons . . . ")
+    negs=[]
+    with open(opinion_lexicon_neg, 'rb') as f_neg: 
+        neg_lines = f_neg.readlines()
+        for i, line in enumerate(neg_lines):
+            try:
+                line = line.decode("utf-8").strip()
+                if line and line[0]!=';':
+                    word = line
+                    # word = stemmer.stem(line)
+                    # word = re.sub('[-]','_', word)
+                    if word not in negs:
+                        negs.append(word)
+            except UnicodeDecodeError:
+                continue
+    pos=[]
+    with open(opinion_lexicon_pos, 'rb') as f_pos: 
+        pos_lines = f_pos.readlines()
+        for i, line in enumerate(pos_lines):
+            try:
+                line = line.decode("utf-8").strip()
+                if line and line[0]!=';':
+                    word=line
+                    # word = stemmer.stem(line)
+                    # word = re.sub('[-]','_', word)
+                    if word not in pos:
+                        pos.append(word)
+            except UnicodeDecodeError:
+                continue
+
+    # remove stopwords from positive and negative and stem
+    POSITIVES = []
+    NEGATIVES = []
+    pos = pos + POS_WORDS
+    negs = negs + NEG_WORDS
+
+    for word in set(pos):
+        if len(word)>2 and '-' not in word and word not in STOPWORDS:
+            POSITIVES.append(word)
+    for word in set(negs):
+        if len(word)>2 and '-' not in word and word not in STOPWORDS:
+            NEGATIVES.append(word)
+
+
+    return POSITIVES, NEGATIVES
+
+def get_lexicon_dictionary(get_scores = True):
+    POSITIVES, NEGATIVES = get_pos_and_neg_list()
+    stemmed_POSITIVES=[]
+    stemmed_NEGATIVES=[]
+    pos_scores = []
+    neg_scores = []
+    pos_scores_custom = []
+    neg_scores_custom = []
+
+    for word in POSITIVES:
+        stemmed_word = stemmer.stem(word)
+        if stemmed_word in stemmed_POSITIVES or stemmed_word in stemmed_NEGATIVES:
             continue
-with open(opinion_lexicon_pos, 'rb') as f_pos: 
-    pos_lines = f_pos.readlines()
-    for i, line in enumerate(pos_lines):
-        try:
-            line = line.decode("utf-8").strip()
-            if line and line[0]!=';':
-                word = stemmer.stem(line)
-                word = re.sub('[-]','_', word)
-                if word not in pos:
-                    pos.append(word)
-        except UnicodeDecodeError:
+        else:
+            stemmed_POSITIVES.append(stemmed_word)
+        if not get_scores:
             continue
+        pos_tag = nltk.pos_tag([word])[0][1]
+        wn_tag = penn_to_wn(pos_tag)      
+        if wn_tag not in (wn.NOUN, wn.ADJ, wn.ADV):
+            pos_scores.append(0.2)
+            continue
+        lemma = lemmatizer.lemmatize(word, pos=wn_tag)
+        if not lemma:
+            pos_scores.append(0.2)
+            continue
+        synsets = wn.synsets(lemma, pos=wn_tag)
+        if not synsets:
+            pos_scores.append(0.2)
+            continue
+        # Take the first sense, the most common
+        synset = synsets[0]
+        swn_synset = swn.senti_synset(synset.name())
+        score = swn_synset.pos_score()-swn_synset.neg_score()
+        if score==0:
+            score=0.2
+        pos_scores.append(score)
 
-# - - - - - - - - - - General Inquirer - - - - - - - - - - 
-# with open(general_inquirer, 'r') as f:
-#     lines = f.readlines()
-    
-# for line in lines[1:]:
-#     words = line.strip().split()
-#     if ('Negativ' or 'Ngtv' in words):
-#         lexicon = stemmer.stem(words[0].lower())
-#         if lexicon not in negs:
-#             negs.append(lexicon)
-#     if ('Positiv' or 'Pstv' in words):
-#         lexicon = stemmer.stem(words[0].lower())
-#         if lexicon not in pos:
-#             pos.append(lexicon)
 
-# remove stopwords from positive and negative and stem
-pos = pos+POS_WORDS
-neg = negs+NEG_WORDS
-POSITIVES = []
-NEGATIVES = []
-for word in set(pos):
-    if len(word)>2 and word not in STOPWORDS:
-        POSITIVES.append(stemmer.stem(word))
-for word in set(negs):
-    if len(word)>2 and word not in STOPWORDS:
-        NEGATIVES.append(stemmer.stem(word))
+    for word in NEGATIVES:
+        stemmed_word = stemmer.stem(word)
+        if stemmed_word in stemmed_NEGATIVES or stemmed_word in stemmed_POSITIVES:
+            continue
+        else:
+            stemmed_NEGATIVES.append(stemmed_word)
+        if not get_scores:
+            continue
+        pos_tag = nltk.pos_tag([word])[0][1]
+        wn_tag = penn_to_wn(pos_tag)
+        if wn_tag not in (wn.NOUN, wn.ADJ, wn.ADV):
+            neg_scores.append(-0.2)
+            continue
+        lemma = lemmatizer.lemmatize(word, pos=wn_tag)
+        if not lemma:
+            neg_scores.append(-0.2)
+            continue
+        synsets = wn.synsets(lemma, pos=wn_tag)
+        if not synsets:
+            neg_scores.append(-0.2)
+            continue
+        # Take the first sense, the most common
+        synset = synsets[0]
+        swn_synset = swn.senti_synset(synset.name())
+        score = swn_synset.pos_score()-swn_synset.neg_score()
+        if score==0:
+            score=-0.2
+        neg_scores.append(score)
 
-LEXICON_DICT = POSITIVES + NEGATIVES
 
+    for word in POS_WORDS:
+        stemmed_word = stemmer.stem(word)
+        if stemmed_word in stemmed_POSITIVES or stemmed_word in stemmed_NEGATIVES:
+            continue
+        else:
+            stemmed_POSITIVES.append(stemmed_word)
+        if not get_scores:
+            continue
+        pos_tag = nltk.pos_tag([word])[0][1]
+        wn_tag = penn_to_wn(pos_tag)
+        if wn_tag not in (wn.NOUN, wn.ADJ, wn.ADV):
+            pos_scores_custom.append(0.2)
+            continue
+        lemma = lemmatizer.lemmatize(word, pos=wn_tag)
+        if not lemma:
+            pos_scores_custom.append(0.2)
+            continue
+        synsets = wn.synsets(lemma, pos=wn_tag)
+        if not synsets:
+            pos_scores_custom.append(0.2)
+            continue
+        # Take the first sense, the most common
+        synset = synsets[0]
+        swn_synset = swn.senti_synset(synset.name())
+        score = swn_synset.pos_score()-swn_synset.neg_score()
+        if score<=0:
+            score=0.2
+        pos_scores_custom.append(score)
+
+    for word in NEG_WORDS:
+        stemmed_word = stemmer.stem(word)
+        if stemmed_word in stemmed_NEGATIVES or stemmed_word in stemmed_POSITIVES:
+            continue
+        else:
+            stemmed_NEGATIVES.append(stemmed_word)
+        if not get_scores:
+            continue
+        pos_tag = nltk.pos_tag([word])[0][1]
+        wn_tag = penn_to_wn(pos_tag)
+        if wn_tag not in (wn.NOUN, wn.ADJ, wn.ADV):
+            neg_scores_custom.append(-0.2)
+            continue       
+        lemma = lemmatizer.lemmatize(word, pos=wn_tag)
+        if not lemma:
+            neg_scores_custom.append(-0.2)
+            continue  
+        synsets = wn.synsets(lemma, pos=wn_tag)
+        if not synsets:
+            neg_scores_custom.append(-0.2)
+            continue
+        # Take the first sense, the most common
+        synset = synsets[0]
+        swn_synset = swn.senti_synset(synset.name())
+        score = swn_synset.pos_score()-swn_synset.neg_score()
+        if score>=0:
+            score=-0.2
+        neg_scores_custom.append(score)
+
+    if get_scores:
+        pos_scores = pos_scores + pos_scores_custom
+        neg_scores = neg_scores + neg_scores_custom
+
+    return stemmed_POSITIVES, stemmed_NEGATIVES, pos_scores, neg_scores 
 
 
 
