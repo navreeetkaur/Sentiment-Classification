@@ -141,8 +141,8 @@ def get_dataframe(FILE,train,save=False,pickle_file=None):
             print("Reading data. . .")
         i=0
         for line in (open(FILE, 'r')):
-            if i>=1000:
-                break
+            # if i>=200000:
+            #     break
             line = json.loads(line)
             review.append(line['review'])
             ratings.append(line['ratings'])
@@ -162,8 +162,8 @@ def get_dataframe(FILE,train,save=False,pickle_file=None):
             print("Reading data. . .")
         i=0
         for line in (open(FILE, 'r')):
-            if i>=200:
-                break
+            # if i>=50000:
+            #     break
             line = json.loads(line)
             review.append(line['review'])
             i+=1

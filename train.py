@@ -19,7 +19,10 @@ FILE_DEV = sys.argv[2]
 MODEL_FILE = sys.argv[3]
 
 # clean, stem
-df = get_dataframe(FILE_TRAIN,train=True)
+# df = get_dataframe(FILE_TRAIN,train=True)
+df_train = get_dataframe(FILE_TRAIN,train=True)
+df_dev = get_dataframe(FILE_DEV,train=True)
+df = pd.concat([df_train,df_dev], axis=0)
 
 # count length of each review
 df = count_length(df)

@@ -2,8 +2,8 @@ import numpy as np
 
 from sklearn.metrics import *
 
-from sklearn.svm import SVR
-from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVR
+from sklearn.linear_model import LogisticRegression, SGDClassifier, SGDRegressor,LinearRegression
 
 from utils import *
 from variables import *
@@ -18,7 +18,11 @@ def get_model2(X_train,Y_train):
 	model = LogisticRegression(penalty='l2',C=1.0,n_jobs=-1)
 	model.fit(X_train, Y_train)
 	y_pred = model.predict_proba(X_train)
-	svr = SVR(kernel='linear')
+	# svr = SVR(kernel='linear')
+	# svr = LinearRegression()
+	# svr = LinearSVR(verbose=True)
+	# svr = SGDClassifier(loss='hinge',penalty='elasticnet',n_jobs=-1)
+	svr = SGDRegressor(loss='squared_loss',max_iter=3)
 	svr.fit(y_pred, Y_train)
 	return model,svr
 	

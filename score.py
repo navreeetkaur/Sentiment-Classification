@@ -12,10 +12,10 @@ for line in (open(OUT_FILE, 'r')):
 y_true=[]
 i=0
 for line in (open(TEST_FILE, 'r')):
-    if i>=200:
-        break
-    line = json.loads(line)
-    y_true.append(line['ratings'])
-    i+=1
-
+	# if i>=50000:
+	# 	break
+	line = json.loads(line)
+	y_true.append(line['ratings'])
+	i+=1
+    
 print(mean_squared_error(y_true, y_pred))
